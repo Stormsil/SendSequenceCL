@@ -188,6 +188,17 @@ namespace SendSequenceCL.Infrastructure
         public static extern bool GetCursorPos(out POINT lpPoint);
 
         /// <summary>
+        /// Determines whether a key is up or down at the time the function is called.
+        /// </summary>
+        /// <param name="vKey">Virtual-key code. Can be any virtual key.</param>
+        /// <returns>
+        /// If the most significant bit is set, the key is down.
+        /// If the least significant bit is set, the key was pressed after the previous call to GetAsyncKeyState.
+        /// </returns>
+        [DllImport("user32.dll")]
+        public static extern short GetAsyncKeyState(int vKey);
+
+        /// <summary>
         /// Point structure for Win32 API.
         /// </summary>
         [StructLayout(LayoutKind.Sequential)]

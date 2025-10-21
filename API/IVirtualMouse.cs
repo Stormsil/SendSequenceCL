@@ -114,5 +114,23 @@ namespace SendSequenceCL
         /// <exception cref="DriverCommunicationException">Thrown if communication with driver fails.</exception>
         /// <exception cref="OperationCanceledException">Thrown if operation is canceled via token.</exception>
         Task DragAsync(int startX, int startY, int endX, int endY, MouseButton button = MouseButton.Left, int? durationMs = null, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Scrolls the mouse wheel using joystick driver for maximum legitimacy.
+        /// </summary>
+        /// <param name="delta">Scroll amount. Positive = scroll down, Negative = scroll up.</param>
+        /// <exception cref="DriverNotFoundException">Thrown if HID joystick driver not found.</exception>
+        /// <exception cref="DriverCommunicationException">Thrown if communication with driver fails.</exception>
+        void Scroll(int delta);
+
+        /// <summary>
+        /// Moves mouse cursor relative to current position using relative mouse driver.
+        /// </summary>
+        /// <param name="dx">Relative X movement in pixels (-127 to 127).</param>
+        /// <param name="dy">Relative Y movement in pixels (-127 to 127).</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown if dx or dy are outside -127 to 127 range.</exception>
+        /// <exception cref="DriverNotFoundException">Thrown if HID relative mouse driver not found.</exception>
+        /// <exception cref="DriverCommunicationException">Thrown if communication with driver fails.</exception>
+        void MoveRelative(int dx, int dy);
     }
 }

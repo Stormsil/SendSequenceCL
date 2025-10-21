@@ -13,12 +13,26 @@ namespace SendSequenceCL.Core
     {
         private readonly HidDeviceManager _deviceManager;
         private readonly HidCommunicator _communicator;
+        private readonly HidDeviceManager _joystickDeviceManager;
+        private readonly HidCommunicator _joystickCommunicator;
+        private readonly HidDeviceManager _relativeDeviceManager;
+        private readonly HidCommunicator _relativeCommunicator;
         private byte _currentButtonState = 0;
 
-        public MouseController(HidDeviceManager deviceManager, HidCommunicator communicator)
+        public MouseController(
+            HidDeviceManager deviceManager,
+            HidCommunicator communicator,
+            HidDeviceManager joystickDeviceManager,
+            HidCommunicator joystickCommunicator,
+            HidDeviceManager relativeDeviceManager,
+            HidCommunicator relativeCommunicator)
         {
             _deviceManager = deviceManager ?? throw new ArgumentNullException(nameof(deviceManager));
             _communicator = communicator ?? throw new ArgumentNullException(nameof(communicator));
+            _joystickDeviceManager = joystickDeviceManager ?? throw new ArgumentNullException(nameof(joystickDeviceManager));
+            _joystickCommunicator = joystickCommunicator ?? throw new ArgumentNullException(nameof(joystickCommunicator));
+            _relativeDeviceManager = relativeDeviceManager ?? throw new ArgumentNullException(nameof(relativeDeviceManager));
+            _relativeCommunicator = relativeCommunicator ?? throw new ArgumentNullException(nameof(relativeCommunicator));
         }
 
         /// <inheritdoc/>
@@ -52,7 +66,7 @@ namespace SendSequenceCL.Core
             Point start = GetPosition();
 
             // Generate Bézier curve points
-            int steps = Math.Max(10, duration / 10); // At least 10 steps, roughly 10ms per step
+            int steps = Math.Max(Configuration.MinCurveSteps, duration / Configuration.MillisecondsPerCurveStep);
             var points = BezierCurveGenerator.Generate(
                 start.X, start.Y,
                 x, y,
@@ -176,7 +190,7 @@ namespace SendSequenceCL.Core
             Point start = GetPosition();
 
             // Generate Bézier curve points
-            int steps = Math.Max(10, duration / 10);
+            int steps = Math.Max(Configuration.MinCurveSteps, duration / Configuration.MillisecondsPerCurveStep);
             var points = BezierCurveGenerator.Generate(
                 start.X, start.Y,
                 x, y,
@@ -217,6 +231,34 @@ namespace SendSequenceCL.Core
 
             // Release button
             Up(button);
+        }
+
+        /// <inheritdoc/>
+        public void Scroll(int delta)
+        {
+            // Calculate wheel value: center (16384) + delta * 100
+            // Positive delta scrolls down, negative scrolls up
+            int wheelValue = DriverConstants.CenterCoordinate + (delta * 100);
+
+            // Clamp to valid range (0-32767)
+            if (wheelValue < 0)
+                wheelValue = 0;
+            if (wheelValue > DriverConstants.MaxCoordinate)
+                wheelValue = DriverConstants.MaxCoordinate;
+
+            _joystickCommunicator.SendJoystick((ushort)wheelValue);
+        }
+
+        /// <inheritdoc/>
+        public void MoveRelative(int dx, int dy)
+        {
+            // Validate range
+            if (dx < -127 || dx > 127)
+                throw new ArgumentOutOfRangeException(nameof(dx), "dx must be between -127 and 127.");
+            if (dy < -127 || dy > 127)
+                throw new ArgumentOutOfRangeException(nameof(dy), "dy must be between -127 and 127.");
+
+            _relativeCommunicator.SendMouseRelative((sbyte)dx, (sbyte)dy, _currentButtonState);
         }
     }
 }

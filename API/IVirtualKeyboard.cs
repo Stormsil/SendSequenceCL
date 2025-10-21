@@ -70,5 +70,13 @@ namespace SendSequenceCL
         /// <exception cref="DriverNotFoundException">Thrown if HID driver not found.</exception>
         /// <exception cref="DriverCommunicationException">Thrown if communication with driver fails.</exception>
         void KeyUp(VirtualKey key);
+
+        /// <summary>
+        /// Checks if the specified key is currently pressed down.
+        /// Uses Windows API to query the physical keyboard state.
+        /// </summary>
+        /// <param name="key">The key to check.</param>
+        /// <returns>True if the key is currently pressed down, false otherwise.</returns>
+        bool IsKeyDown(VirtualKey key);
     }
 }

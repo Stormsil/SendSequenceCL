@@ -116,5 +116,55 @@ namespace SendSequenceCL
                 _dragPauseMs = value;
             }
         }
+
+        private static int _minCurveSteps = 10;
+        private static int _millisecondsPerCurveStep = 10;
+        private static bool _throwOnUnsupportedChar = false;
+
+        /// <summary>
+        /// Minimum number of steps used when generating a mouse movement curve.
+        /// Default: 10 steps.
+        /// Valid range: &gt; 0 (1-5 = choppy, 10-20 = smooth, 20+ = very smooth).
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown if value &lt;= 0.</exception>
+        public static int MinCurveSteps
+        {
+            get => _minCurveSteps;
+            set
+            {
+                if (value <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(value), "MinCurveSteps must be > 0.");
+                _minCurveSteps = value;
+            }
+        }
+
+        /// <summary>
+        /// Desired duration of a single step in the mouse movement curve in milliseconds.
+        /// Used to calculate total number of steps: duration / MillisecondsPerCurveStep.
+        /// Default: 10 milliseconds per step.
+        /// Valid range: &gt; 0 (1-5 = fast updates, 10-20 = normal, 20+ = slow updates).
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown if value &lt;= 0.</exception>
+        public static int MillisecondsPerCurveStep
+        {
+            get => _millisecondsPerCurveStep;
+            set
+            {
+                if (value <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(value), "MillisecondsPerCurveStep must be > 0.");
+                _millisecondsPerCurveStep = value;
+            }
+        }
+
+        /// <summary>
+        /// If true, TypeText method will throw an exception when encountering an unsupported character.
+        /// If false (default), unsupported characters are silently skipped.
+        /// Default: false (skip unsupported characters).
+        /// </summary>
+        public static bool ThrowOnUnsupportedChar
+        {
+            get => _throwOnUnsupportedChar;
+            set => _throwOnUnsupportedChar = value;
+        }
     }
 }

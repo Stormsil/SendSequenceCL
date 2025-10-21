@@ -106,6 +106,63 @@ namespace SendSequenceCL.Infrastructure
         }
 
         /// <summary>
+        /// Sends relative mouse movement data to HID driver.
+        /// </summary>
+        /// <param name="dx">Relative X movement (-127 to 127).</param>
+        /// <param name="dy">Relative Y movement (-127 to 127).</param>
+        /// <param name="buttons">Button state flags (bit 0=Left, bit 1=Right, bit 2=Middle).</param>
+        /// <exception cref="DriverNotFoundException">Thrown if device not connected.</exception>
+        /// <exception cref="DriverCommunicationException">Thrown if send operation fails.</exception>
+        public void SendMouseRelative(sbyte dx, sbyte dy, byte buttons)
+        {
+            EnsureConnected();
+
+            SetFeatureMouseRel data = new SetFeatureMouseRel
+            {
+                ReportID = DriverConstants.ReportId,
+                CommandCode = DriverConstants.CommandCodeSend,
+                Buttons = buttons,
+                X = dx,
+                Y = dy
+            };
+
+            SendFeatureReport(data);
+        }
+
+        /// <summary>
+        /// Sends joystick data to HID driver (used for scroll wheel emulation).
+        /// </summary>
+        /// <param name="wheelValue">Wheel position (0-32767, center = 16384).</param>
+        /// <exception cref="DriverNotFoundException">Thrown if device not connected.</exception>
+        /// <exception cref="DriverCommunicationException">Thrown if send operation fails.</exception>
+        public void SendJoystick(ushort wheelValue)
+        {
+            EnsureConnected();
+
+            SetFeatureJoy data = new SetFeatureJoy
+            {
+                ReportID = DriverConstants.ReportId,
+                CommandCode = DriverConstants.CommandCodeSend,
+                X = DriverConstants.CenterCoordinate,
+                Y = DriverConstants.CenterCoordinate,
+                Z = DriverConstants.CenterCoordinate,
+                rX = DriverConstants.CenterCoordinate,
+                rY = DriverConstants.CenterCoordinate,
+                rZ = DriverConstants.CenterCoordinate,
+                slider = DriverConstants.CenterCoordinate,
+                dial = DriverConstants.CenterCoordinate,
+                wheel = wheelValue,
+                hat = 0,
+                btn0 = 0, btn1 = 0, btn2 = 0, btn3 = 0,
+                btn4 = 0, btn5 = 0, btn6 = 0, btn7 = 0,
+                btn8 = 0, btn9 = 0, btn10 = 0, btn11 = 0,
+                btn12 = 0, btn13 = 0, btn14 = 0, btn15 = 0
+            };
+
+            SendFeatureReport(data);
+        }
+
+        /// <summary>
         /// Ensures device is connected, throws if not.
         /// </summary>
         private void EnsureConnected()

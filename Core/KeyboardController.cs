@@ -34,6 +34,9 @@ namespace SendSequenceCL.Core
 
                 if (key == VirtualKey.None)
                 {
+                    if (Configuration.ThrowOnUnsupportedChar)
+                        throw new NotSupportedException($"Character '{c}' cannot be typed as it has no mapping to VirtualKey.");
+
                     // Skip unsupported characters
                     continue;
                 }
@@ -163,6 +166,14 @@ namespace SendSequenceCL.Core
                 _pressedKeys.Remove(key);
                 SendCurrentKeyState();
             }
+        }
+
+        /// <inheritdoc/>
+        public bool IsKeyDown(VirtualKey key)
+        {
+            short state = NativeMethods.GetAsyncKeyState((int)key);
+            // Check if the most significant bit is set (key is down)
+            return (state & 0x8000) != 0;
         }
 
         /// <summary>

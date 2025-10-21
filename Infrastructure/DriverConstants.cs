@@ -23,6 +23,16 @@ namespace SendSequenceCL.Infrastructure
         public const ushort ProductIdKeyboard = 0x0003;
 
         /// <summary>
+        /// Product ID for Tetherscript Virtual Joystick driver.
+        /// </summary>
+        public const ushort ProductIdJoystick = 0x0001;
+
+        /// <summary>
+        /// Product ID for Tetherscript Virtual Mouse Relative driver.
+        /// </summary>
+        public const ushort ProductIdMouseRelative = 0x0005;
+
+        /// <summary>
         /// HID Report ID for feature reports (must be 1).
         /// </summary>
         public const byte ReportId = 1;

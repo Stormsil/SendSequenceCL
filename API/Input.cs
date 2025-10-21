@@ -25,14 +25,34 @@ namespace SendSequenceCL
             return manager;
         });
 
+        private static readonly Lazy<HidDeviceManager> _joystickDeviceManager = new Lazy<HidDeviceManager>(() =>
+        {
+            var manager = new HidDeviceManager(DriverConstants.VendorId, DriverConstants.ProductIdJoystick);
+            manager.Connect();
+            return manager;
+        });
+
+        private static readonly Lazy<HidDeviceManager> _mouseRelativeDeviceManager = new Lazy<HidDeviceManager>(() =>
+        {
+            var manager = new HidDeviceManager(DriverConstants.VendorId, DriverConstants.ProductIdMouseRelative);
+            manager.Connect();
+            return manager;
+        });
+
         private static readonly Lazy<HidCommunicator> _mouseCommunicator = new Lazy<HidCommunicator>(() =>
             new HidCommunicator(_mouseDeviceManager.Value));
 
         private static readonly Lazy<HidCommunicator> _keyboardCommunicator = new Lazy<HidCommunicator>(() =>
             new HidCommunicator(_keyboardDeviceManager.Value));
 
+        private static readonly Lazy<HidCommunicator> _joystickCommunicator = new Lazy<HidCommunicator>(() =>
+            new HidCommunicator(_joystickDeviceManager.Value));
+
+        private static readonly Lazy<HidCommunicator> _mouseRelativeCommunicator = new Lazy<HidCommunicator>(() =>
+            new HidCommunicator(_mouseRelativeDeviceManager.Value));
+
         private static readonly Lazy<IVirtualMouse> _mouse = new Lazy<IVirtualMouse>(() =>
-            new MouseController(_mouseDeviceManager.Value, _mouseCommunicator.Value));
+            new MouseController(_mouseDeviceManager.Value, _mouseCommunicator.Value, _joystickDeviceManager.Value, _joystickCommunicator.Value, _mouseRelativeDeviceManager.Value, _mouseRelativeCommunicator.Value));
 
         private static readonly Lazy<IVirtualKeyboard> _keyboard = new Lazy<IVirtualKeyboard>(() =>
             new KeyboardController(_keyboardDeviceManager.Value, _keyboardCommunicator.Value));
@@ -78,6 +98,12 @@ namespace SendSequenceCL
 
             if (_keyboardDeviceManager.IsValueCreated)
                 _keyboardDeviceManager.Value.Dispose();
+
+            if (_joystickDeviceManager.IsValueCreated)
+                _joystickDeviceManager.Value.Dispose();
+
+            if (_mouseRelativeDeviceManager.IsValueCreated)
+                _mouseRelativeDeviceManager.Value.Dispose();
         }
     }
 }

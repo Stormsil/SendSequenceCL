@@ -38,7 +38,8 @@
       "Bash(test:*)",
       "Bash(taskkill:*)",
       "Bash(cat:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(if not exist \"Docs\" mkdir Docs)"
     ],
     "deny": [],
     "ask": []
