@@ -78,5 +78,13 @@ namespace SendSequenceCL
         /// <param name="key">The key to check.</param>
         /// <returns>True if the key is currently pressed down, false otherwise.</returns>
         bool IsKeyDown(VirtualKey key);
+
+        /// <summary>
+        /// Types text with maximum humanization: random delays, typo simulation, word pauses.
+        /// Uses Configuration ranges for delays and Configuration.TypoChance for typos.
+        /// </summary>
+        /// <param name="text">Text to type.</param>
+        /// <exception cref="ArgumentNullException">Thrown if text is null.</exception>
+        void TypeTextHuman(string text);
     }
 }

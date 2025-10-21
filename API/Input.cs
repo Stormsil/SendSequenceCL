@@ -51,11 +51,11 @@ namespace SendSequenceCL
         private static readonly Lazy<HidCommunicator> _mouseRelativeCommunicator = new Lazy<HidCommunicator>(() =>
             new HidCommunicator(_mouseRelativeDeviceManager.Value));
 
-        private static readonly Lazy<IVirtualMouse> _mouse = new Lazy<IVirtualMouse>(() =>
-            new MouseController(_mouseDeviceManager.Value, _mouseCommunicator.Value, _joystickDeviceManager.Value, _joystickCommunicator.Value, _mouseRelativeDeviceManager.Value, _mouseRelativeCommunicator.Value));
-
         private static readonly Lazy<IVirtualKeyboard> _keyboard = new Lazy<IVirtualKeyboard>(() =>
             new KeyboardController(_keyboardDeviceManager.Value, _keyboardCommunicator.Value));
+
+        private static readonly Lazy<IVirtualMouse> _mouse = new Lazy<IVirtualMouse>(() =>
+            new MouseController(_mouseDeviceManager.Value, _mouseCommunicator.Value, _joystickDeviceManager.Value, _joystickCommunicator.Value, _mouseRelativeDeviceManager.Value, _mouseRelativeCommunicator.Value, _keyboard));
 
         /// <summary>
         /// Gets the virtual mouse automation interface.

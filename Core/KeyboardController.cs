@@ -56,11 +56,11 @@ namespace SendSequenceCL.Core
                     _communicator.SendKeyboard(0, hidCode);
                 }
 
-                Thread.Sleep(Configuration.KeystrokeDelay);
+                Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay));
 
                 // Release key
                 _communicator.SendKeyboard(0, 0);
-                Thread.Sleep(Configuration.KeystrokeDelay / 2);
+                Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay) / 2);
             }
         }
 
@@ -76,7 +76,7 @@ namespace SendSequenceCL.Core
 
             // Key down
             _communicator.SendKeyboard(_currentModifiers, hidCode);
-            Thread.Sleep(Configuration.KeystrokeDelay);
+            Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay));
 
             // Key up
             _communicator.SendKeyboard(_currentModifiers, 0);
@@ -113,15 +113,15 @@ namespace SendSequenceCL.Core
 
             // Press modifiers down
             _communicator.SendKeyboard(modifierFlags, 0);
-            Thread.Sleep(Configuration.ModifierHoldDuration);
+            Thread.Sleep(RandomInRange(Configuration.ModifierHoldDuration));
 
             // Press main key
             _communicator.SendKeyboard(modifierFlags, hidCode);
-            Thread.Sleep(Configuration.KeystrokeDelay);
+            Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay));
 
             // Release main key
             _communicator.SendKeyboard(modifierFlags, 0);
-            Thread.Sleep(Configuration.KeystrokeDelay / 2);
+            Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay) / 2);
 
             // Release modifiers
             _communicator.SendKeyboard(0, 0);
@@ -171,9 +171,84 @@ namespace SendSequenceCL.Core
         /// <inheritdoc/>
         public bool IsKeyDown(VirtualKey key)
         {
-            short state = NativeMethods.GetAsyncKeyState((int)key);
-            // Check if the most significant bit is set (key is down)
+            // Convert VirtualKey (HID Usage ID) to Windows Virtual-Key code
+            int windowsVK = KeyboardMapper.VirtualKeyToWindowsVK(key);
+            if (windowsVK == 0)
+            {
+                // Unknown key, cannot check state
+                return false;
+            }
+
+            short state = NativeMethods.GetAsyncKeyState(windowsVK);
             return (state & 0x8000) != 0;
+        }
+
+        /// <inheritdoc/>
+        public void TypeTextHuman(string text)
+        {
+            if (text == null)
+                throw new ArgumentNullException(nameof(text));
+
+            var random = new Random();
+
+            foreach (char c in text)
+            {
+                var (key, needsShift) = KeyboardMapper.CharToVirtualKey(c);
+
+                if (key == VirtualKey.None)
+                {
+                    if (Configuration.ThrowOnUnsupportedChar)
+                        throw new NotSupportedException($"Character '{c}' cannot be typed as it has no mapping to VirtualKey.");
+                    continue;
+                }
+
+                // Typo simulation
+                if (random.NextDouble() < Configuration.TypoChance)
+                {
+                    // Type wrong key
+                    byte wrongKey = KeyboardMapper.VirtualKeyToHidCode(VirtualKey.A); // Simple: always 'A' as typo
+                    _communicator.SendKeyboard(0, wrongKey);
+                    Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay));
+                    _communicator.SendKeyboard(0, 0);
+                    Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay) / 2);
+
+                    // Backspace
+                    byte backspace = KeyboardMapper.VirtualKeyToHidCode(VirtualKey.Backspace);
+                    _communicator.SendKeyboard(0, backspace);
+                    Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay));
+                    _communicator.SendKeyboard(0, 0);
+                    Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay) / 2);
+                }
+
+                // Type correct key
+                if (needsShift)
+                {
+                    byte shiftModifier = KeyboardMapper.VirtualKeyToModifierFlag(VirtualKey.LeftShift);
+                    byte hidCode = KeyboardMapper.VirtualKeyToHidCode(key);
+                    _communicator.SendKeyboard(shiftModifier, hidCode);
+                }
+                else
+                {
+                    byte hidCode = KeyboardMapper.VirtualKeyToHidCode(key);
+                    _communicator.SendKeyboard(0, hidCode);
+                }
+
+                Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay));
+                _communicator.SendKeyboard(0, 0);
+                Thread.Sleep(RandomInRange(Configuration.KeystrokeDelay) / 2);
+
+                // Extra delay after space (word boundary)
+                if (key == VirtualKey.Space)
+                {
+                    Thread.Sleep(RandomInRange(Configuration.InterWordDelay));
+                }
+            }
+        }
+
+        private static int RandomInRange((int Min, int Max) range)
+        {
+            var random = new Random();
+            return random.Next(range.Min, range.Max + 1);
         }
 
         /// <summary>

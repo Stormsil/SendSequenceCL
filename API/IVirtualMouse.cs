@@ -116,21 +116,30 @@ namespace SendSequenceCL
         Task DragAsync(int startX, int startY, int endX, int endY, MouseButton button = MouseButton.Left, int? durationMs = null, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Scrolls the mouse wheel using joystick driver for maximum legitimacy.
+        /// Scrolls using arrow keys (HID driver doesn't support mouse wheel).
+        /// Uses Up/Down arrow keys to simulate scrolling.
         /// </summary>
-        /// <param name="delta">Scroll amount. Positive = scroll down, Negative = scroll up.</param>
-        /// <exception cref="DriverNotFoundException">Thrown if HID joystick driver not found.</exception>
+        /// <param name="delta">Scroll amount. Positive = scroll down (Down key), Negative = scroll up (Up key).</param>
+        /// <exception cref="DriverNotFoundException">Thrown if HID keyboard driver not found.</exception>
         /// <exception cref="DriverCommunicationException">Thrown if communication with driver fails.</exception>
         void Scroll(int delta);
 
         /// <summary>
         /// Moves mouse cursor relative to current position using relative mouse driver.
+        /// Automatically splits large movements into chunks.
         /// </summary>
-        /// <param name="dx">Relative X movement in pixels (-127 to 127).</param>
-        /// <param name="dy">Relative Y movement in pixels (-127 to 127).</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if dx or dy are outside -127 to 127 range.</exception>
+        /// <param name="dx">Relative X movement in pixels.</param>
+        /// <param name="dy">Relative Y movement in pixels.</param>
         /// <exception cref="DriverNotFoundException">Thrown if HID relative mouse driver not found.</exception>
         /// <exception cref="DriverCommunicationException">Thrown if communication with driver fails.</exception>
         void MoveRelative(int dx, int dy);
+
+        /// <summary>
+        /// Scrolls using arrow keys in human-like manner with random chunk sizes and pauses.
+        /// </summary>
+        /// <param name="totalDelta">Total scroll amount (positive = down, negative = up).</param>
+        /// <param name="minChunk">Minimum chunk size per scroll (default: 1).</param>
+        /// <param name="maxChunk">Maximum chunk size per scroll (default: 3).</param>
+        void ScrollHuman(int totalDelta, int minChunk = 1, int maxChunk = 3);
     }
 }

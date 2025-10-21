@@ -1,6 +1,6 @@
 # SendSequenceCL API Reference
 
-**Version:** 1.0
+**Version:** 2.0 (Humanization 3.0)
 **Target:** .NET 8.0 (Windows)
 **Driver:** Tetherscript HID Virtual Drivers
 **Architecture:** Driver-based input emulation (no Windows API injection)
@@ -8,9 +8,10 @@
 ## Overview
 
 SendSequenceCL provides hardware-level input automation through Tetherscript HID drivers:
-- Mouse: Absolute positioning, relative movement, human-like curves, scroll
-- Keyboard: Text input, key combinations, state checking
-- Configuration: Runtime behavior customization
+- **Mouse:** Absolute positioning, relative movement, human-like curves (Bezier/Perlin Noise), overshoot simulation, scroll
+- **Keyboard:** Text input, human-like typing with typos, key combinations, state checking
+- **Sequence Builder:** Fluent API for complex automation workflows with guards and conditions
+- **Configuration:** Runtime behavior customization with randomization ranges
 
 ## Entry Point
 
@@ -66,16 +67,19 @@ Instant teleport to coordinates (0,0 = top-left).
 ```csharp
 void MoveHuman(int x, int y, int? durationMs = null)
 ```
-Curved human-like movement with Bézier interpolation.
-- `durationMs`: Override `Configuration.MouseMovementDuration` (null = use default)
+**[ENHANCED]** Curved human-like movement with configurable algorithm (Bezier/Perlin Noise), overshoot simulation.
+- `durationMs`: Override `Configuration.MouseMovementDuration` range (null = random from range)
+- Algorithm: `Configuration.MotionAlgorithm` (Bezier or PerlinNoise)
+- Overshoot: 20% chance if `Configuration.EnableMouseOvershoot = true`
+- Randomization: `Configuration.CurveRandomization` for curve variation
 
 **MoveRelative(int dx, int dy)**
 ```csharp
 void MoveRelative(int dx, int dy)
 ```
-Move relative to current position using relative mouse driver.
-- Range: dx/dy ∈ [-127, 127]
-- **Exceptions:** `ArgumentOutOfRangeException` if outside range
+**[ENHANCED]** Move relative to current position using relative mouse driver.
+- **Auto-splits large movements** into chunks of max 127 pixels
+- Range: dx/dy unlimited (chunked automatically)
 
 **Async:**
 ```csharp
@@ -88,7 +92,7 @@ Task MoveHumanAsync(int x, int y, int? durationMs = null, CancellationToken ct =
 ```csharp
 void Click(MouseButton button)
 ```
-Press and release button (duration: `Configuration.ClickDuration`).
+Press and release button (duration: random from `Configuration.ClickDuration` range).
 
 **DoubleClick(MouseButton button)**
 ```csharp
@@ -133,6 +137,15 @@ Scroll wheel using joystick driver (most legitimate method).
 - Negative: scroll up
 - Implementation: `wheel = 16384 + (delta * 100)`, clamped to [0, 32767]
 
+**ScrollHuman(int totalDelta, int minChunk = 1, int maxChunk = 3)**
+```csharp
+void ScrollHuman(int totalDelta, int minChunk = 1, int maxChunk = 3)
+```
+**[NEW]** Human-like scrolling with random chunk sizes and pauses.
+- Breaks `totalDelta` into random chunks from `minChunk` to `maxChunk`
+- Pauses between chunks using `Configuration.KeystrokeDelay` range
+- Example: `ScrollHuman(10, 1, 3)` might scroll 2, 3, 1, 3, 1 with random pauses
+
 ---
 
 ## Keyboard API
@@ -149,13 +162,31 @@ public interface IVirtualKeyboard
 ```csharp
 void TypeText(string text)
 ```
-Type arbitrary text with auto-shift for uppercase/symbols.
-- Delay between keystrokes: `Configuration.KeystrokeDelay`
+**[ENHANCED]** Type arbitrary text with auto-shift for uppercase/symbols.
+- Delay between keystrokes: random from `Configuration.KeystrokeDelay` range
 - Unsupported chars: skip (or throw if `Configuration.ThrowOnUnsupportedChar = true`)
+- **⚠️ Requires US keyboard layout** (other layouts may produce wrong characters)
 
 **Exceptions:**
 - `ArgumentNullException` - text is null
 - `NotSupportedException` - Unsupported character (if `ThrowOnUnsupportedChar = true`)
+
+**TypeTextHuman(string text)**
+```csharp
+void TypeTextHuman(string text)
+```
+**[NEW]** Maximum humanization: random delays, typo simulation, word pauses.
+- Random keystroke delays from `Configuration.KeystrokeDelay` range
+- Typo simulation: `Configuration.TypoChance` probability (wrong key → backspace → correct)
+- Word boundaries: extra delay from `Configuration.InterWordDelay` range after space
+- **⚠️ Requires US keyboard layout** (other layouts may produce wrong characters)
+
+**Example:**
+```csharp
+Configuration.TypoChance = 0.05; // 5% typo chance
+Configuration.InterWordDelay = (200, 400); // 200-400ms after spaces
+Input.Keyboard.TypeTextHuman("Hello World"); // May type "Hellpo<backspace> World" with pauses
+```
 
 #### Key Operations
 
@@ -210,6 +241,167 @@ Check if physical key currently pressed (uses Windows `GetAsyncKeyState`).
 
 ---
 
+## Sequence Builder
+
+### SequenceBuilder Class
+
+**[NEW]** Fluent API for building complex automation sequences. All methods return `this` for chaining.
+
+```csharp
+public class SequenceBuilder
+```
+
+#### Basic Usage
+
+```csharp
+new SequenceBuilder()
+    .MoveHuman(500, 500)
+    .Wait(200)
+    .Click(MouseButton.Left)
+    .TypeText("Hello")
+    .Run(); // Execute all actions
+```
+
+#### Mouse Methods (Fluent)
+
+All mouse operations from `IVirtualMouse`:
+
+- `SequenceBuilder MoveTo(int x, int y)`
+- `SequenceBuilder MoveHuman(int x, int y, int? durationMs = null)`
+- `SequenceBuilder MoveRelative(int dx, int dy)`
+- `SequenceBuilder Click(MouseButton button)`
+- `SequenceBuilder DoubleClick(MouseButton button)`
+- `SequenceBuilder Down(MouseButton button)`
+- `SequenceBuilder Up(MouseButton button)`
+- `SequenceBuilder Drag(int startX, int startY, int endX, int endY, MouseButton button = Left, int? durationMs = null)`
+- `SequenceBuilder Scroll(int delta)`
+- `SequenceBuilder ScrollHuman(int totalDelta, int minChunk = 1, int maxChunk = 3)`
+
+#### Keyboard Methods (Fluent)
+
+All keyboard operations from `IVirtualKeyboard`:
+
+- `SequenceBuilder TypeText(string text)`
+- `SequenceBuilder TypeTextHuman(string text)`
+- `SequenceBuilder KeyPress(VirtualKey key)`
+- `SequenceBuilder Chord(VirtualKey modifier, VirtualKey key)`
+- `SequenceBuilder Chord(IEnumerable<VirtualKey> modifiers, VirtualKey key)`
+- `SequenceBuilder KeyDown(VirtualKey key)`
+- `SequenceBuilder KeyUp(VirtualKey key)`
+
+#### Timing Methods
+
+**Wait(int milliseconds)**
+```csharp
+SequenceBuilder Wait(int milliseconds)
+```
+Fixed delay.
+
+**WaitRandom(int minMs, int maxMs)**
+```csharp
+SequenceBuilder WaitRandom(int minMs, int maxMs)
+```
+Random delay between min and max.
+
+```csharp
+.Wait(500)               // Always 500ms
+.WaitRandom(200, 800)    // Random 200-800ms
+```
+
+#### Guard Methods (Conditionals)
+
+**DoIf(Func&lt;bool&gt; condition, Action action)**
+```csharp
+SequenceBuilder DoIf(Func<bool> condition, Action action)
+```
+Execute action only if condition is true at runtime.
+
+```csharp
+.DoIf(() => DateTime.Now.Hour > 12,
+      () => Input.Keyboard.TypeText("Good afternoon"))
+```
+
+**WaitUntil(Func&lt;bool&gt; condition, int timeoutMs = 5000, int checkIntervalMs = 50)**
+```csharp
+SequenceBuilder WaitUntil(Func<bool> condition, int timeoutMs = 5000, int checkIntervalMs = 50)
+```
+Block until condition is true or timeout expires.
+
+**Exceptions:** `TimeoutException` if condition not met within timeout.
+
+```csharp
+.WaitUntil(() => Input.Keyboard.IsKeyDown(VirtualKey.LeftControl),
+           timeoutMs: 10000,
+           checkIntervalMs: 100)
+```
+
+**ClickIfAt(Point targetPosition, MouseButton button, int tolerance = 5)**
+```csharp
+SequenceBuilder ClickIfAt(Point targetPosition, MouseButton button, int tolerance = 5)
+```
+Click only if cursor is within `tolerance` pixels of `targetPosition`.
+
+```csharp
+.ClickIfAt(new Point(500, 500), MouseButton.Left, tolerance: 10)
+```
+
+#### Execution & Control
+
+**Run()**
+```csharp
+void Run()
+```
+Execute all accumulated actions in order.
+
+**Clear()**
+```csharp
+SequenceBuilder Clear()
+```
+Remove all actions from sequence.
+
+**Count**
+```csharp
+int Count { get; }
+```
+Number of actions in sequence.
+
+#### Complex Example
+
+```csharp
+var sequence = new SequenceBuilder()
+    // Open Run dialog
+    .Chord(VirtualKey.Windows, VirtualKey.R)
+    .Wait(500)
+
+    // Type "notepad" with human-like typing
+    .TypeTextHuman("notepad")
+    .KeyPress(VirtualKey.Enter)
+    .Wait(1500)
+
+    // Wait for Notepad window to appear (pseudo-check)
+    .WaitRandom(500, 1000)
+
+    // Type text with random delay
+    .TypeTextHuman("This is a test with typos and natural delays.")
+
+    // Conditional: Save if Ctrl is held
+    .DoIf(() => Input.Keyboard.IsKeyDown(VirtualKey.LeftControl),
+          () => {
+              Input.Keyboard.Chord(VirtualKey.LeftControl, VirtualKey.S);
+              Input.Wait(500);
+          })
+
+    // Close without saving
+    .Chord(VirtualKey.LeftAlt, VirtualKey.F4)
+    .Wait(300)
+    .KeyPress(VirtualKey.N)
+
+    // Execute
+    .Run();
+```
+
+---
+
 ## Configuration
 
 ### Configuration (Static Class)
@@ -219,17 +411,41 @@ public static class Configuration
 ```
 
 All properties thread-safe. Changes apply immediately to subsequent operations.
+**[MAJOR CHANGE]** Most timing properties now use `(int Min, int Max)` tuples for randomization.
 
 #### Mouse Configuration
 
-**MouseMovementDuration** (int, default: 400)
-- Duration for `MoveHuman()` in milliseconds
-- Range: ≥ 0 (0 = instant like `MoveTo`)
-- Guide: 100-300 fast, 300-500 natural, 500+ slow
+**MouseMovementDuration** ((int Min, int Max), default: (300, 500))
+- Duration range for `MoveHuman()` in milliseconds
+- Random value picked from [Min, Max] for each movement
+- Range: Min ≥ 0, Max ≥ Min (0 = instant, 100-300 fast, 300-500 natural, 500+ slow)
+
+**Exceptions:** `ArgumentOutOfRangeException` if Min < 0 or Max < Min.
+
+**MotionAlgorithm** (MouseMotionAlgorithm, default: Bezier)
+```csharp
+public enum MouseMotionAlgorithm { Bezier, PerlinNoise }
+```
+- `Bezier`: Smooth, predictable curves (classic)
+- `PerlinNoise`: Organic, slightly chaotic paths (more human-like)
 
 **CurveRandomization** (double, default: 0.10)
-- Randomization in Bézier curves (0.0-1.0)
+- Randomization in curve control points (0.0-1.0)
 - Guide: 0 = deterministic, 0.05-0.15 natural, 0.5+ erratic
+
+**EnableMouseOvershoot** (bool, default: true)
+- If true, `MoveHuman` occasionally overshoots target and corrects back (20% chance)
+- Simulates natural human imprecision
+
+**OvershootAmount** ((double Min, double Max), default: (0.02, 0.07))
+- Overshoot distance as percentage of total distance (0.0-1.0)
+- Random value from [Min, Max] when overshoot occurs
+- Example: (0.05, 0.10) = 5-10% overshoot
+
+**PerlinNoiseIntensity** ((int Min, int Max), default: (5, 15))
+- Intensity range of Perlin noise when `MotionAlgorithm = PerlinNoise`
+- Higher values = more chaotic/jittery movement
+- Range: Min ≥ 0, Max ≥ Min
 
 **MinCurveSteps** (int, default: 10)
 - Minimum steps in movement curve
@@ -240,29 +456,60 @@ All properties thread-safe. Changes apply immediately to subsequent operations.
 - Target duration per step in ms
 - Range: > 0
 - Calculation: `steps = max(MinCurveSteps, duration / MillisecondsPerCurveStep)`
-- Guide: 1-5 fast updates, 10-20 normal, 20+ slow
 
-**ClickDuration** (int, default: 50)
-- Delay between button down/up in milliseconds
-- Range: ≥ 0 (0 = instant, 30-100 normal, 100-200 slow)
+**ClickDuration** ((int Min, int Max), default: (30, 70))
+- Delay range between button down/up in milliseconds
+- Random value from [Min, Max] for each click
+- Range: Min ≥ 0, Max ≥ Min (0 = instant, 30-100 normal, 100-200 slow)
 
-**DragPauseMs** (int, default: 50)
-- Pause before/after drag in milliseconds
-- Range: ≥ 0
+**DragPauseMs** ((int Min, int Max), default: (40, 80))
+- Pause duration range before/after drag in milliseconds
+- Random value from [Min, Max] for each drag
 
 #### Keyboard Configuration
 
-**KeystrokeDelay** (int, default: 75)
-- Delay between keystrokes and key press/release in milliseconds
-- Range: ≥ 0 (0 = robotic, 30-50 fast, 50-100 normal, 100+ slow)
+**KeystrokeDelay** ((int Min, int Max), default: (50, 120))
+- Delay range between keystrokes and key press/release in milliseconds
+- Random value from [Min, Max] for each keystroke
+- Range: Min ≥ 0, Max ≥ Min (0 = robotic, 30-50 fast, 50-100 normal, 100+ slow)
 
-**ModifierHoldDuration** (int, default: 100)
-- Delay after pressing modifier before main key in milliseconds
-- Range: ≥ 0 (0 = risky, 50-150 natural, 150+ slow)
+**ModifierHoldDuration** ((int Min, int Max), default: (80, 150))
+- Delay range after pressing modifier before main key in milliseconds
+- Random value from [Min, Max] for each chord
+- Range: Min ≥ 0, Max ≥ Min (0 = risky, 50-150 natural, 150+ slow)
+
+**InterWordDelay** ((int Min, int Max), default: (100, 250))
+- **[NEW]** Additional delay range after space character (word boundary)
+- Random value from [Min, Max] after each space
+- Used by `TypeTextHuman`
+
+**TypoChance** (double, default: 0.01)
+- **[NEW]** Probability of typing mistake during `TypeTextHuman` (0.0-1.0)
+- After correct key: wrong key → backspace → continue
+- Range: 0.0-1.0 (0 = no typos, 0.01 = 1%, 0.1 = 10%)
 
 **ThrowOnUnsupportedChar** (bool, default: false)
 - If true: `TypeText()` throws `NotSupportedException` on unsupported character
 - If false: silently skip unsupported characters
+
+#### Configuration Example
+
+```csharp
+// Slower, more varied movement
+Configuration.MouseMovementDuration = (500, 800);
+Configuration.CurveRandomization = 0.15;
+Configuration.MotionAlgorithm = MouseMotionAlgorithm.PerlinNoise;
+Configuration.EnableMouseOvershoot = true;
+Configuration.OvershootAmount = (0.03, 0.08);
+
+// Slower, more human typing with typos
+Configuration.KeystrokeDelay = (80, 150);
+Configuration.InterWordDelay = (150, 300);
+Configuration.TypoChance = 0.03; // 3% typo rate
+
+// Faster clicks
+Configuration.ClickDuration = (20, 40);
+```
 
 ---
 
@@ -276,6 +523,16 @@ public enum MouseButton : byte
     Left = 1,    // Primary button
     Right = 2,   // Secondary (context menu)
     Middle = 3   // Scroll wheel click
+}
+```
+
+### MouseMotionAlgorithm
+
+```csharp
+public enum MouseMotionAlgorithm
+{
+    Bezier,       // Smooth, predictable Bezier curves
+    PerlinNoise   // Organic, slightly chaotic Perlin noise-based movement
 }
 ```
 
@@ -338,24 +595,26 @@ using SendSequenceCL;
 // Instant move
 Input.Mouse.MoveTo(500, 300);
 
-// Human-like move (400ms default)
+// Human-like move (random 300-500ms, Bezier curve, possible overshoot)
 Input.Mouse.MoveHuman(800, 600);
 
 // Custom duration
 Input.Mouse.MoveHuman(100, 100, durationMs: 1000);
 
-// Click
+// Click (random 30-70ms between down/up)
 Input.Mouse.Click(MouseButton.Left);
 
 // Drag
 Input.Mouse.Drag(100, 100, 500, 500);
 
-// Scroll
+// Scroll (instant)
 Input.Mouse.Scroll(3);  // Down
-Input.Mouse.Scroll(-3); // Up
 
-// Relative movement
-Input.Mouse.MoveRelative(50, -20);
+// Human scroll (chunked with pauses)
+Input.Mouse.ScrollHuman(10, minChunk: 1, maxChunk: 3);
+
+// Relative movement (auto-splits large distances)
+Input.Mouse.MoveRelative(500, -300);
 ```
 
 ### Basic Keyboard
@@ -363,13 +622,18 @@ Input.Mouse.MoveRelative(50, -20);
 ```csharp
 using SendSequenceCL;
 
-// Type text
+// Type text (random delays)
 Input.Keyboard.TypeText("Hello World!");
+
+// Human typing (with typos and word pauses)
+Configuration.TypoChance = 0.02;
+Configuration.InterWordDelay = (150, 300);
+Input.Keyboard.TypeTextHuman("Hello World!");
 
 // Single key
 Input.Keyboard.KeyPress(VirtualKey.Enter);
 
-// Shortcut (single modifier)
+// Shortcut
 Input.Keyboard.Chord(VirtualKey.LeftControl, VirtualKey.C);
 
 // Multiple modifiers
@@ -378,39 +642,81 @@ Input.Keyboard.Chord(
     VirtualKey.Escape
 );
 
-// Manual control
-Input.Keyboard.KeyDown(VirtualKey.LeftShift);
-Input.Keyboard.KeyPress(VirtualKey.A);
-Input.Keyboard.KeyUp(VirtualKey.LeftShift);
-
 // Check state
 bool ctrlPressed = Input.Keyboard.IsKeyDown(VirtualKey.LeftControl);
 ```
 
-### Configuration
+### Sequence Builder
 
 ```csharp
 using SendSequenceCL;
 
-// Adjust timings
-Configuration.MouseMovementDuration = 600;  // Slower movement
-Configuration.KeystrokeDelay = 50;          // Faster typing
-Configuration.CurveRandomization = 0.2;     // More random curves
+// Simple sequence
+new SequenceBuilder()
+    .MoveHuman(500, 500)
+    .Wait(200)
+    .Click(MouseButton.Left)
+    .TypeTextHuman("Hello World")
+    .Run();
 
-// Curve calculation
-Configuration.MinCurveSteps = 15;
-Configuration.MillisecondsPerCurveStep = 8;
+// Complex workflow with conditionals
+var sequence = new SequenceBuilder()
+    // Open program
+    .Chord(VirtualKey.Windows, VirtualKey.R)
+    .Wait(500)
+    .TypeText("notepad")
+    .KeyPress(VirtualKey.Enter)
+    .WaitRandom(1000, 2000)
 
-// Error handling for unsupported chars
-Configuration.ThrowOnUnsupportedChar = true;
-try
+    // Type with humanization
+    .TypeTextHuman("This text has natural delays and occasional typos.")
+
+    // Conditional click (only if cursor at expected position)
+    .ClickIfAt(new Point(800, 600), MouseButton.Left, tolerance: 10)
+
+    // Wait for condition (e.g., wait for Ctrl to be pressed)
+    .WaitUntil(() => Input.Keyboard.IsKeyDown(VirtualKey.LeftControl),
+               timeoutMs: 5000)
+
+    // Conditional action
+    .DoIf(() => DateTime.Now.Hour > 12,
+          () => Input.Keyboard.TypeText(" (afternoon)"))
+
+    // Execute all
+    .Run();
+
+// Reusable sequences
+var builder = new SequenceBuilder();
+for (int i = 0; i < 5; i++)
 {
-    Input.Keyboard.TypeText("™");  // Throws if not supported
+    builder.MoveHuman(100 + i * 100, 100)
+           .Click(MouseButton.Left)
+           .WaitRandom(200, 500);
 }
-catch (NotSupportedException ex)
-{
-    Console.WriteLine($"Cannot type: {ex.Message}");
-}
+builder.Run();
+builder.Clear(); // Reuse
+```
+
+### Humanization Configuration
+
+```csharp
+using SendSequenceCL;
+
+// Maximum humanization
+Configuration.MouseMovementDuration = (400, 700);
+Configuration.MotionAlgorithm = MouseMotionAlgorithm.PerlinNoise;
+Configuration.EnableMouseOvershoot = true;
+Configuration.OvershootAmount = (0.03, 0.10);
+Configuration.CurveRandomization = 0.15;
+Configuration.PerlinNoiseIntensity = (8, 18);
+
+Configuration.KeystrokeDelay = (70, 150);
+Configuration.InterWordDelay = (150, 350);
+Configuration.TypoChance = 0.03; // 3% typo chance
+
+// Test
+Input.Mouse.MoveHuman(800, 600); // Perlin noise path, possible overshoot
+Input.Keyboard.TypeTextHuman("This feels very human!"); // Typos, word pauses
 ```
 
 ### Async Operations
@@ -448,7 +754,7 @@ Input.Dispose();
 
 **HID Drivers Used:**
 - Mouse Absolute (0x0002): Absolute positioning
-- Mouse Relative (0x0005): Relative movement
+- Mouse Relative (0x0005): Relative movement (auto-chunking)
 - Keyboard (0x0003): Key input
 - Joystick (0x0001): Scroll wheel emulation
 
@@ -469,21 +775,46 @@ Input.Dispose();
 **Mouse Relative:**
 - Range: -127 to 127 per update
 - Accumulative movement
+- **Auto-splits** movements > 127 into multiple updates
 
-### Movement Algorithm
+### Movement Algorithms
 
-**Bézier Curve Generation:**
+**Bezier Curve:**
 1. Calculate steps: `max(MinCurveSteps, duration / MillisecondsPerCurveStep)`
-2. Generate control points with randomization
-3. Interpolate cubic Bézier curve
+2. Generate control points with `CurveRandomization`
+3. Interpolate cubic Bezier curve
 4. Move along curve with `delayPerStep = duration / steps`
+5. 20% chance of overshoot if enabled
+
+**Perlin Noise:**
+1. Calculate linear path
+2. Add multi-frequency sine wave noise:
+   - Base frequency: `2π / steps`
+   - 3 frequencies: 1x (50%), 2.3x (30%), 5.7x (20%)
+   - Intensity: random from `PerlinNoiseIntensity` range
+3. Apply envelope (sine wave from 0 to π) to smooth start/end
+4. Add perpendicular offset to path
+5. 20% chance of overshoot if enabled
+
+**Overshoot Simulation:**
+1. When triggered (20% chance):
+2. Calculate overshoot distance: `distance * random(OvershootAmount.Min, OvershootAmount.Max)`
+3. Generate overshoot point beyond target
+4. Move to overshoot point
+5. Immediately move back to target (correction)
 
 ### Character Mapping
 
-**TypeText() supports:**
+**TypeText() / TypeTextHuman() supports:**
 - a-z, A-Z (auto-shift for uppercase)
 - 0-9, basic symbols (!@#$%^&*()etc.)
 - Whitespace (space, tab, newline)
+
+**⚠️ Keyboard Layout Dependency:**
+- **Current Implementation:** Hardcoded for US keyboard layout
+- **Non-US layouts:** May produce wrong characters (e.g., QWERTZ, AZERTY)
+- **Workaround:** Switch to US layout before automation
+- **Future:** Layout detection/adaptation planned
 
 **Not supported:**
 - Unicode beyond basic ASCII/Latin-1
@@ -498,14 +829,16 @@ Input.Dispose();
 
 **Not thread-safe:**
 - Individual mouse/keyboard operations (serialize manually if needed)
+- `SequenceBuilder` instances (one per thread)
 
 ### Performance
 
 **Typical latencies:**
 - Instant move: <1ms
-- Human move (400ms): ~400ms + curve computation (<10ms)
-- Key press: 75ms (KeystrokeDelay)
-- Click: 50ms (ClickDuration)
+- Human move (300-500ms): ~300-500ms + curve computation (<15ms)
+- Key press: 50-120ms (KeystrokeDelay range)
+- Click: 30-70ms (ClickDuration range)
+- Typo simulation: ~200-400ms (extra keystroke + backspace)
 
 ---
 
@@ -513,8 +846,9 @@ Input.Dispose();
 
 - **.NET 8.0** (Windows)
 - **Tetherscript HID Virtual Drivers** installed
-- **Administrator privileges** (for driver access)
+- **Administrator privileges** (for driver access and input blocking hooks)
 - **Windows OS** (driver dependency)
+- **US Keyboard Layout** (for correct TypeText character mapping)
 
 ---
 
@@ -527,6 +861,7 @@ try
 {
     // First access may throw
     Input.Mouse.MoveTo(100, 100);
+    Input.Keyboard.TypeText("test");
 }
 catch (DriverNotFoundException ex)
 {
@@ -543,6 +878,11 @@ catch (InvalidCoordinateException ex)
     Console.WriteLine("Invalid coordinates: " + ex.Message);
     // Validate screen bounds
 }
+catch (TimeoutException ex)
+{
+    Console.WriteLine("Sequence timeout: " + ex.Message);
+    // WaitUntil condition not met
+}
 ```
 
 ---
@@ -553,7 +893,8 @@ catch (InvalidCoordinateException ex)
 2. **Legitimacy:** Hardware-level simulation indistinguishable from physical devices
 3. **Zero dependencies:** BCL only, no NuGet packages
 4. **Simplicity:** Static facade, minimal configuration
-5. **Human simulation:** Bézier curves, randomization, realistic timings
+5. **Human simulation:** Multiple algorithms (Bezier/Perlin Noise), randomization, overshoot, typos
+6. **Fluent API:** Sequence builder for complex workflows with natural syntax
 
 ---
 
@@ -562,14 +903,35 @@ catch (InvalidCoordinateException ex)
 - **Windows only** (Tetherscript driver dependency)
 - **Single display** optimization (multi-monitor requires coordinate adjustment)
 - **No input reading** (except `IsKeyDown` for state checking)
-- **Sequential operations** (no built-in parallel input sequences)
+- **US keyboard layout required** for TypeText (other layouts produce wrong characters)
 - **Basic character set** (TypeText limited to common ASCII/Latin-1)
+- **Sequential operations** (SequenceBuilder executes actions in order, no built-in parallelism)
 
 ---
 
 ## Version History
 
-**1.0 (Current)**
+**2.0 (Humanization 3.0) - Current**
+- **Humanization 3.0:**
+  - Range-based randomization for all timing parameters (tuples)
+  - Perlin Noise movement algorithm (organic paths)
+  - Mouse overshoot simulation (20% chance)
+  - `TypeTextHuman` with typo simulation and word pauses
+  - `ScrollHuman` with chunked scrolling
+  - Enhanced `MoveRelative` with auto-chunking
+- **Sequence Builder:**
+  - Fluent API for complex workflows
+  - Guards: `DoIf`, `WaitUntil`, `ClickIfAt`
+  - Timing: `Wait`, `WaitRandom`
+  - All mouse/keyboard operations chainable
+- **Configuration:**
+  - `MouseMotionAlgorithm` enum (Bezier/PerlinNoise)
+  - `EnableMouseOvershoot`, `OvershootAmount`
+  - `PerlinNoiseIntensity`
+  - `InterWordDelay`, `TypoChance`
+  - All timing configs now use `(Min, Max)` ranges
+
+**1.0**
 - Initial release
 - Mouse: absolute, relative, scroll, human-like movement
 - Keyboard: text input, combinations, state checking
